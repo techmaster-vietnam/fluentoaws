@@ -2,8 +2,18 @@ provider "aws" {
   region = var.aws_region
 }
 
-# Tạo security group mới
+# Try to fetch existing security group
+data "aws_security_group" "existing_ssh_sg" {
+  name   = "ssh_security_group"
+  filter {
+    name   = "group-name"
+    values = ["ssh_security_group"]
+  }
+}
+
+# Create security group only if it doesn't exist
 resource "aws_security_group" "ssh_sg" {
+  count       = length(data.aws_security_group.existing_ssh_sg.id) == 0 ? 1 : 0
   name        = "ssh_security_group"
   description = "Security group for SSH access"
 
@@ -26,7 +36,7 @@ resource "aws_security_group" "ssh_sg" {
   }
 
   lifecycle {
-    prevent_destroy = true
+    create_before_destroy = true
   }
 }
 
@@ -40,7 +50,9 @@ resource "aws_instance" "example" {
   ami           = var.ami_id
   instance_type = "t2.micro"
   key_name      = aws_key_pair.ssh_key.key_name
-  vpc_security_group_ids = [aws_security_group.ssh_sg.id]
+  vpc_security_group_ids = [
+    length(data.aws_security_group.existing_ssh_sg.id) == 0 ? aws_security_group.ssh_sg[0].id : data.aws_security_group.existing_ssh_sg.id
+  ]
 
   tags = {
     Name = "CuongEC2Instance"

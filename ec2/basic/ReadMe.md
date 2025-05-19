@@ -63,6 +63,7 @@ File chính chứa các resource cần tạo:
 Định nghĩa các giá trị output sau khi triển khai:
 - instance_id: ID của EC2 instance
 - public_ip: Public IP của instance
+- ssh_command: SSH command đã được định dạng sẵn để kết nối vào instance
 
 ## 4. Chi tiết các khối lệnh
 
@@ -78,15 +79,28 @@ provider "aws" {
 
 #### Security Group
 ```hcl
+# Kiểm tra security group đã tồn tại
+data "aws_security_group" "existing_ssh_sg" {
+  name   = "ssh_security_group"
+  filter {
+    name   = "group-name"
+    values = ["ssh_security_group"]
+  }
+}
+
+# Tạo security group mới nếu chưa tồn tại
 resource "aws_security_group" "ssh_sg" {
+  count       = length(data.aws_security_group.existing_ssh_sg.id) == 0 ? 1 : 0
   name        = "ssh_security_group"
   description = "Security group for SSH access"
   ...
 }
 ```
+- Kiểm tra xem security group đã tồn tại chưa thông qua data source
+- Chỉ tạo security group mới nếu chưa tồn tại (sử dụng count)
 - Tạo security group cho phép SSH (port 22)
 - Cho phép tất cả outbound traffic
-- Có lifecycle rule prevent_destroy để tránh xóa nhầm
+- Có lifecycle rule create_before_destroy để đảm bảo không bị gián đoạn khi cập nhật
 
 #### Key Pair
 ```hcl
@@ -117,4 +131,5 @@ resource "aws_instance" "example" {
 ### Trong outputs.tf
 - Output instance_id để lấy ID của instance
 - Output public_ip để lấy địa chỉ IP public của instance
+- Output ssh_command để lấy lệnh SSH đã được định dạng sẵn để kết nối vào instance
 
