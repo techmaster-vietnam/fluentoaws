@@ -1,0 +1,35 @@
+name: Deploy Go App to EC2
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.21'
+
+      - name: Build Go application
+        run: |
+          go build -o myapp main.go
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/go-web-key
+          chmod 600 ~/.ssh/go-web-key
+
+      - name: Deploy application
+        run: |
+          chmod +x ./scripts/deploy.sh
+          ./scripts/deploy.sh ${{ secrets.EC2_HOST }}
