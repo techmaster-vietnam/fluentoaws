@@ -1,0 +1,11 @@
+ec2_security_group_id = "sg-0312d733c2c2beb2c"
+postgresql_connection_string = <sensitive>
+private_subnet_b_id = "subnet-08aae12e22f3f20ff"
+private_subnet_id = "subnet-0d61fa26d419058ba"
+public_subnet_id = "subnet-0c75420ab1fb91f60"
+rds_database_name = "polylang"
+rds_endpoint = "polylang-rds.cp0msqwwux96.ap-southeast-1.rds.amazonaws.com:5432"
+rds_port = 5432
+rds_security_group_id = "sg-077cd5f32a4ff0f30"
+rds_username = <sensitive>
+vpc_id = "vpc-09dfb7f53438d7546"
