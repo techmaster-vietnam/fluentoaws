@@ -6,33 +6,31 @@ File `main.tf` định nghĩa cấu trúc cơ sở hạ tầng AWS cho ứng d�
 - Tạo VPC chính với DNS support và hostnames
 - Thiết lập Internet Gateway để kết nối với internet
 - Tạo hai loại subnet:
-  - Public subnet: Cho EC2 instances, có thể truy cập internet
-  - Private subnet: Cho RDS database, không thể truy cập trực tiếp từ internet
+  - Public subnet: Cho Bastion Host EC2 instance, có thể truy cập internet
+  - Private subnet: Cho RDS database và App EC2 instance, không thể truy cập trực tiếp từ internet
 - Cấu hình Route Table cho public subnet để định tuyến traffic
 
 ## 2. Security Groups
-- EC2 Security Group:
-  - Cho phép SSH (port 22) từ IP developer
+- Bastion Host Security Group:
+  - Cho phép SSH (port 22), HTTP (port 80), HTTPS (port 443) từ mọi nơi
+  - Cho phép tất cả traffic đi ra
+- EC2 App Security Group:
+  - Cho phép SSH (port 22) chỉ từ Bastion Host
   - Cho phép HTTP (port 80) và HTTPS (port 443) từ mọi nơi
   - Cho phép tất cả traffic đi ra
 - RDS Security Group:
-  - Cho phép PostgreSQL (port 5432) từ EC2 instances
+  - Cho phép PostgreSQL (port 5432) từ Bastion Host
   - Cho phép kết nối PostgreSQL từ IP developer (cho pgAdmin)
 
 ## 3. Mục tiêu Bảo mật
 - Tách biệt mạng public và private
-- Giới hạn truy cập database chỉ từ EC2 và developer
-- Kiểm soát chặt chẽ các kết nối SSH
+- Sử dụng Bastion Host làm điểm truy cập duy nhất vào private subnet
+- Giới hạn truy cập database chỉ từ Bastion Host và developer
+- Kiểm soát chặt chẽ các kết nối SSH thông qua Bastion Host
 
 ## 4. Khả năng Mở rộng
 - Cấu trúc được thiết kế để dễ dàng thêm các thành phần mới
 - Sử dụng biến để dễ dàng tùy chỉnh cấu hình
-
-ec2_security_group_id = "sg-0312d733c2c2beb2c"
-private_subnet_id = "subnet-073edc8a15731621f"
-public_subnet_id = "subnet-0c75420ab1fb91f60"
-rds_security_group_id = "sg-077cd5f32a4ff0f30"
-vpc_id = "vpc-09dfb7f53438d7546"
 
 # Infrastructure as Code với Terraform
 
@@ -40,6 +38,7 @@ vpc_id = "vpc-09dfb7f53438d7546"
 ```
 infra/
 ├── main.tf           # Cấu hình VPC, Subnet, Security Group
+├── bastion.tf        # Cấu hình Bastion Host
 ├── rds.tf            # Cấu hình RDS PostgreSQL
 ├── variables.tf      # Định nghĩa các biến
 ├── outputs.tf        # Định nghĩa các output
@@ -71,18 +70,23 @@ Sau khi triển khai thành công, bạn có thể lấy thông tin kết nối 
 terraform output
 ```
 
-### 2. Kết nối bằng psql
+### 2. Kết nối qua Bastion Host (SSH Tunnel)
 ```bash
-psql "postgresql://<username>:<password>@<endpoint>/<database>"
+# Tạo SSH tunnel
+ssh -i ~/.ssh/aws_key -L 5432:<rds_endpoint>:5432 ec2-user@<bastion_public_ip>
+
+# Kết nối PostgreSQL qua tunnel
+psql "postgresql://<username>:<password>@localhost:5432/<database>"
 ```
 
 ### 3. Kết nối bằng pgAdmin
-1. Mở pgAdmin
-2. Click chuột phải vào Servers > Create > Server
-3. Trong tab General:
+1. Tạo SSH tunnel như hướng dẫn trên
+2. Mở pgAdmin
+3. Click chuột phải vào Servers > Create > Server
+4. Trong tab General:
    - Name: Polylang RDS
-4. Trong tab Connection:
-   - Host: <endpoint>
+5. Trong tab Connection:
+   - Host: localhost
    - Port: 5432
    - Database: <database>
    - Username: <username>
@@ -101,10 +105,11 @@ db, err := sql.Open("postgres", dsn)
 ### Lưu ý quan trọng:
 1. Đảm bảo IP của máy của bạn (`dev_ip` trong terraform.tfvars) đã được cấu hình trong Security Group
 2. Kết nối chỉ được phép từ:
-   - EC2 instances trong cùng VPC
+   - Bastion Host
    - IP của máy dev được cấu hình
 3. RDS instance nằm trong private subnet, không thể truy cập trực tiếp từ internet
 4. Sử dụng SSL khi kết nối (thêm `?sslmode=require` vào connection string)
+5. Luôn sử dụng SSH tunnel thông qua Bastion Host để kết nối an toàn
 
 ## Xóa infrastructure
 ```bash
